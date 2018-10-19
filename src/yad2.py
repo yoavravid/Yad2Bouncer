@@ -1,8 +1,6 @@
-import argparse
 from selenium import webdriver
 
 CHROME_EXECUTABLE_PATH = r"C:\Users\Yoav\Desktop\chromedriver.exe"
-
 
 class Yad2:
 	USERNAME_TEXTBOX_ID = 'userName'
@@ -49,20 +47,3 @@ class Yad2:
 				pass
 
 			self._driver.switch_to.default_content()
-
-
-def get_arguments():
-	parser = argparse.ArgumentParser()
-	parser.add_argument('email')
-	parser.add_argument('password')
-	return parser.parse_args()
-
-
-def main():
-	credentials = get_arguments()
-	yad2 = Yad2()
-	yad2.login(credentials.email, credentials.password)
-	yad2.bounce_all_ads()
-
-if __name__ == '__main__':
-	main()
