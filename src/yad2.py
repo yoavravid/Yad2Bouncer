@@ -1,49 +1,92 @@
+# coding=utf-8
 from selenium import webdriver
+from contextlib import contextmanager
 
-CHROME_EXECUTABLE_PATH = r"C:\Users\Yoav\Desktop\chromedriver.exe"
+
+# from selenium.common.exceptions import StaleElementReferenceException
+
+
+class Yad2Error(Exception):
+    pass
+
 
 class Yad2:
-	USERNAME_TEXTBOX_ID = 'userName'
-	PASSWORD_TEXTBOX_ID = 'password'
-	SUBMIT_FORM_ID = 'submitLogonForm'
-	ADS_PAGE_LINK_TEXT = u'מכירות'
-	LOGIN_URL = 'https://my.yad2.co.il/login.php'
+    USERNAME_TEXTBOX_ID = 'userName'
+    PASSWORD_TEXTBOX_ID = 'password'
+    SUBMIT_FORM_ID = 'submitLogonForm'
+    ADS_PAGE_LINK_TEXT = u'מכירות'
+    LOGIN_URL = 'https://my.yad2.co.il/login.php'
 
-	def __init__(self):
-		self._driver = webdriver.Chrome(executable_path=CHROME_EXECUTABLE_PATH)
-		self._driver.maximize_window()
+    def __init__(self, executable_path):
+        self._driver = webdriver.Chrome(executable_path=executable_path)
+        self._driver.maximize_window()
 
-	def login(self, email, password):
-		self._driver.get(Yad2.LOGIN_URL)
-		username_textbox = self._driver.find_element_by_id(Yad2.USERNAME_TEXTBOX_ID)
-		password_textbox = self._driver.find_element_by_id(Yad2.PASSWORD_TEXTBOX_ID)
-		submit_button = self._driver.find_element_by_id(Yad2.SUBMIT_FORM_ID)
-		username_textbox.send_keys(email)
-		password_textbox.send_keys(password)
-		submit_button.click()
+    def login(self, email, password):
+        self._driver.get(Yad2.LOGIN_URL)
+        username_textbox = self._driver.find_element_by_id(Yad2.USERNAME_TEXTBOX_ID)
+        password_textbox = self._driver.find_element_by_id(Yad2.PASSWORD_TEXTBOX_ID)
+        submit_button = self._driver.find_element_by_id(Yad2.SUBMIT_FORM_ID)
+        username_textbox.send_keys(email)
+        password_textbox.send_keys(password)
+        submit_button.click()
 
-	def _go_to_ads_page(self):
-		self._driver.find_element_by_partial_link_text(Yad2.ADS_PAGE_LINK_TEXT).click()
+    def iterate_categories(self):
+        visited_categories = list()
+        while True:
+            # Obtain the list of categories
+            link_containers = self._driver.find_elements_by_class_name('links_container')
+            if len(link_containers) != 1:
+                raise Yad2Error('Failed to find a single link container')
 
-	def _open_all_ads(self):
-		rows = self._driver.find_elements_by_tag_name('tr')
-		item_rows = [row for row in rows if len(row.find_elements_by_tag_name('td')) > 3]
-		for item_row in item_rows:
-			item_row.click()
+            for category_link in link_containers.pop().find_elements_by_class_name('catSubcatTitle'):
+                if category_link.text not in visited_categories:
+                    visited_categories.append(category_link.text)
+                    # Clicking the category will direct us to its page
+                    category_text = category_link.text
+                    category_link.click()
+                    yield category_text
+                    # After clicking a category we need to obtain the reloaded category list
+                    break
+            else:
+                # All category links where visited
+                break
 
-	def bounce_all_ads(self):
-		self._go_to_ads_page()
-		self._open_all_ads()
+    def iterate_ads(self):
+        for item_row in self._driver.find_elements_by_class_name('item'):
+            yield item_row
 
-		frames = self._driver.find_elements_by_tag_name('iframe')
-		for frame in frames:
+    def bounce_all_ads(self):
+        for category_text in self.iterate_categories():
+            print(u'Opened category: ' + category_text)
+            for ad in self.iterate_ads():
+                with self.enter_ad(ad):
+                    bounce_button = self._driver.find_element_by_id('bounceRatingOrderBtn')
+                    if bounce_button.value_of_css_property('background').startswith(u'rgb(204, 204, 204)'):
+                        print('Button is disabled')
+                    else:
+                        bounce_button.click()
+                        print('Bounced Ad!')
 
-			self._driver.switch_to.frame(frame)
-			try:
-				btn = self._driver.find_element_by_id('bounceRatingOrderBtn')
-				btn.click()
-				print('Bounced Ad!')
-			except Exception:
-				pass
+    @contextmanager
+    def enter_ad(self, ad):
+        # Open the ad
+        ad.click()
+        ad_content_frames = self._driver.find_elements_by_tag_name('iframe')
+        # Find the iframe of the ad by ad's orderid
+        ad_content_frames = filter(
+            lambda e: e.get_attribute('src').endswith(u'OrderID=' + ad.get_attribute('data-orderid')),
+            ad_content_frames
+        )
+        if len(ad_content_frames) != 1:
+            raise Yad2Error('Failed to find a single iframe')
 
-			self._driver.switch_to.default_content()
+        with self.enter_iframe(ad_content_frames.pop()):
+            yield
+        # Close the ad
+        ad.click()
+
+    @contextmanager
+    def enter_iframe(self, iframe):
+        self._driver.switch_to.frame(iframe)
+        yield
+        self._driver.switch_to.default_content()
