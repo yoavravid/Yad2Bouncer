@@ -7,12 +7,6 @@ Run in the terminal the following line:
 python3 src\main.py <chrome_drive> <username> <password>
 ```
 
-## Windows
-Chrome drive for windows is located in the bin folder.
-```
-python3 src/main.py bin/chromedrive.exe <username> <password>
-```
-
 # Requirements
 * Python 3
 * Chrome driver - bin\chromedriver.exe
