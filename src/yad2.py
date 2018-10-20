@@ -100,3 +100,7 @@ class Yad2:
         self._driver.switch_to.frame(iframe)
         yield
         self._driver.switch_to.default_content()
+
+    def get_screenshot_as_file(self, filename):
+        self._driver.get_screenshot_as_file(filename)
+

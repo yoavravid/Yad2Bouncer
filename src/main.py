@@ -13,8 +13,12 @@ def get_arguments():
 def main():
     arguments = get_arguments()
     yad2 = Yad2(arguments.driver_path)
-    yad2.login(arguments.email, arguments.password)
-    yad2.bounce_all_ads()
+    try:
+        yad2.login(arguments.email, arguments.password)
+        yad2.bounce_all_ads()
+    except:
+        yad2.get_screenshot_as_file('error.png')
+        raise
 
 
 if __name__ == '__main__':
