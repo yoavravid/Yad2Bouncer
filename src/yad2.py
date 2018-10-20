@@ -2,9 +2,7 @@
 import logging
 from selenium import webdriver
 from contextlib import contextmanager
-
-
-# from selenium.common.exceptions import StaleElementReferenceException
+from sys import platform
 
 
 class Yad2Error(Exception):
@@ -20,16 +18,15 @@ class Yad2:
 
     def __init__(self, executable_path):
         options = webdriver.ChromeOptions()
-        options.binary_location = '/usr/bin/google-chrome-stable'
-        options.add_argument('headless')
-        # set the window size
-        options.add_argument('window-size=1200x600')
-        # initialize the driver
-        self._driver = webdriver.Chrome(executable_path=executable_path ,options=options)
+        if platform == "linux" or platform == "linux2":
+            options.binary_location = '/usr/bin/google-chrome-stable'
+            options.add_argument('headless')
+        self._driver = webdriver.Chrome(executable_path=executable_path, options=options)
         logger_handler = logging.FileHandler('yad2.log')
         logger_formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
         logger_handler.setFormatter(logger_formatter)
         self._logger = logging.getLogger(__name__)
+        self._logger.setLevel(logging.DEBUG)
         self._logger.addHandler(logger_handler)
 
     def login(self, email, password):
@@ -103,4 +100,3 @@ class Yad2:
         self._driver.switch_to.frame(iframe)
         yield
         self._driver.switch_to.default_content()
-
