@@ -1,4 +1,5 @@
 # coding=utf-8
+import logging
 from selenium import webdriver
 from contextlib import contextmanager
 
@@ -18,10 +19,21 @@ class Yad2:
     LOGIN_URL = 'https://my.yad2.co.il/login.php'
 
     def __init__(self, executable_path):
-        self._driver = webdriver.Chrome(executable_path=executable_path)
-        self._driver.maximize_window()
+        options = webdriver.ChromeOptions()
+        options.binary_location = '/usr/bin/google-chrome-stable'
+        options.add_argument('headless')
+        # set the window size
+        options.add_argument('window-size=1200x600')
+        # initialize the driver
+        self._driver = webdriver.Chrome(executable_path=executable_path ,options=options)
+        logger_handler = logging.FileHandler('yad2.log')
+        logger_formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
+        logger_handler.setFormatter(logger_formatter)
+        self._logger = logging.getLogger(__name__)
+        self._logger.addHandler(logger_handler)
 
     def login(self, email, password):
+        self._logger.info('Started login')
         self._driver.get(Yad2.LOGIN_URL)
         username_textbox = self._driver.find_element_by_id(Yad2.USERNAME_TEXTBOX_ID)
         password_textbox = self._driver.find_element_by_id(Yad2.PASSWORD_TEXTBOX_ID)
@@ -29,6 +41,7 @@ class Yad2:
         username_textbox.send_keys(email)
         password_textbox.send_keys(password)
         submit_button.click()
+        self._logger.info('Finished login')
 
     def iterate_categories(self):
         visited_categories = list()
@@ -57,15 +70,15 @@ class Yad2:
 
     def bounce_all_ads(self):
         for category_text in self.iterate_categories():
-            print(u'Opened category: ' + category_text)
+            self._logger.info(u'Opened category: ' + category_text)
             for ad in self.iterate_ads():
                 with self.enter_ad(ad):
                     bounce_button = self._driver.find_element_by_id('bounceRatingOrderBtn')
                     if bounce_button.value_of_css_property('background').startswith(u'rgb(204, 204, 204)'):
-                        print('Button is disabled')
+                        self._logger.info('Button is disabled')
                     else:
                         bounce_button.click()
-                        print('Bounced Ad!')
+                        self._logger.info('Bounced Ad!')
 
     @contextmanager
     def enter_ad(self, ad):
@@ -90,3 +103,4 @@ class Yad2:
         self._driver.switch_to.frame(iframe)
         yield
         self._driver.switch_to.default_content()
+
