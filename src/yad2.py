@@ -13,8 +13,9 @@ class Yad2:
     USERNAME_TEXTBOX_ID = 'userName'
     PASSWORD_TEXTBOX_ID = 'password'
     SUBMIT_FORM_ID = 'submitLogonForm'
-    ADS_PAGE_LINK_TEXT = u'מכירות'
+    LOGOUT_BUTTON_CLASS = 'logout'
     LOGIN_URL = 'https://my.yad2.co.il/login.php'
+    PERSONAL_AREA_URL = 'https://my.yad2.co.il//newOrder/index.php?action=personalAreaIndex'
 
     def __init__(self, executable_path):
         options = webdriver.ChromeOptions()
@@ -22,15 +23,27 @@ class Yad2:
             options.binary_location = '/usr/bin/google-chrome-stable'
             options.add_argument('headless')
         self._driver = webdriver.Chrome(executable_path=executable_path, options=options)
-        logger_handler = logging.FileHandler('yad2.log')
+        self._create_logger('yad2.log')
+
+    def _create_logger(self, logfile):
+        logger_handler = logging.FileHandler(logfile)
         logger_formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
         logger_handler.setFormatter(logger_formatter)
         self._logger = logging.getLogger(__name__)
         self._logger.setLevel(logging.DEBUG)
         self._logger.addHandler(logger_handler)
 
+    @contextmanager
     def login(self, email, password):
-        self._logger.info('Started login')
+        self._logger.info('Logging in')
+        self._login(email, password)
+        self._logger.info('Logged in')
+        yield
+        self._logger.info('Logging out')
+        self._logout()
+        self._logger.info('Logged out')
+
+    def _login(self, email, password):
         self._driver.get(Yad2.LOGIN_URL)
         username_textbox = self._driver.find_element_by_id(Yad2.USERNAME_TEXTBOX_ID)
         password_textbox = self._driver.find_element_by_id(Yad2.PASSWORD_TEXTBOX_ID)
@@ -38,15 +51,32 @@ class Yad2:
         username_textbox.send_keys(email)
         password_textbox.send_keys(password)
         submit_button.click()
-        self._logger.info('Finished login')
+        if self._driver.current_url != Yad2.PERSONAL_AREA_URL:
+            self._raise_error('Login failed')
+
+    def _logout(self):
+        logout_button = self._driver.find_element_by_class_name(Yad2.LOGOUT_BUTTON_CLASS)
+        logout_button.click()
+        with self.enter_alert() as alert:
+            alert.accept()
 
     def iterate_categories(self):
+        """
+        Iterates over all the available categories.
+        Every available category in entered and its name is yielded.
+        Note:
+        Every time a category is selected the page changes - this invalidates all the object that represent
+        elements in the page, therefor every time a category is selected all the categories should be
+        queried again and iterated until all the categories where visited.
+        :return:
+        """
         visited_categories = list()
-        while True:
+        iterated_all_categories = False
+        while not iterated_all_categories:
             # Obtain the list of categories
             link_containers = self._driver.find_elements_by_class_name('links_container')
             if len(link_containers) != 1:
-                raise Yad2Error('Failed to find a single link container')
+                self._raise_error('Failed to find a single link container')
 
             for category_link in link_containers.pop().find_elements_by_class_name('catSubcatTitle'):
                 if category_link.text not in visited_categories:
@@ -58,8 +88,7 @@ class Yad2:
                     # After clicking a category we need to obtain the reloaded category list
                     break
             else:
-                # All category links where visited
-                break
+                iterated_all_categories = True
 
     def iterate_ads(self):
         for item_row in self._driver.find_elements_by_class_name('item'):
@@ -88,7 +117,7 @@ class Yad2:
             ad_content_frames
         )
         if len(ad_content_frames) != 1:
-            raise Yad2Error('Failed to find a single iframe')
+            self._raise_error('Failed to find a single iframe')
 
         with self.enter_iframe(ad_content_frames.pop()):
             yield
@@ -101,5 +130,14 @@ class Yad2:
         yield
         self._driver.switch_to.default_content()
 
+    @contextmanager
+    def enter_alert(self):
+        yield self._driver.switch_to.alert
+        self._driver.switch_to.default_content()
+
     def get_screenshot_as_file(self, filename):
         self._driver.get_screenshot_as_file(filename)
+
+    def _raise_error(self, error_message):
+        self._logger.error(error_message)
+        raise Yad2Error(error_message)
