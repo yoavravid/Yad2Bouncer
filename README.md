@@ -14,7 +14,7 @@ make EMAIL=<username> PASSWORD=<password> run
 
 ## Windows
 ```
-python3 src\main.py <chrome_drive> <username> <password>
+python3 src\main.py [-d <chrome_drive>] <username> <password>
 ```
 
 # Requirements
