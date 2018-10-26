@@ -17,12 +17,18 @@ class Yad2:
     LOGIN_URL = 'https://my.yad2.co.il/login.php'
     PERSONAL_AREA_URL = 'https://my.yad2.co.il//newOrder/index.php?action=personalAreaIndex'
 
-    def __init__(self, executable_path):
+    def __init__(self, executable_path=None):
         options = webdriver.ChromeOptions()
         if platform == "linux" or platform == "linux2":
             options.binary_location = '/usr/bin/google-chrome-stable'
             options.add_argument('headless')
-        self._driver = webdriver.Chrome(executable_path=executable_path, options=options)
+
+        chrome_kwargs = {'options': options}
+
+        if executable_path is not None:
+            chrome_kwargs['executable_path'] = executable_path
+
+        self._driver = webdriver.Chrome(**chrome_kwargs)
         self._create_logger('yad2.log')
 
     def _create_logger(self, logfile):
@@ -68,7 +74,6 @@ class Yad2:
         Every time a category is selected the page changes - this invalidates all the object that represent
         elements in the page, therefor every time a category is selected all the categories should be
         queried again and iterated until all the categories where visited.
-        :return:
         """
         visited_categories = list()
         iterated_all_categories = False

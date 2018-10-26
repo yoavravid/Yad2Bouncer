@@ -1,11 +1,13 @@
 import argparse
 from yad2 import Yad2
 import datetime
+import os
 
 
 def get_arguments():
     parser = argparse.ArgumentParser()
-    parser.add_argument('driver_path')
+    parser.add_argument('-d', '--driver', required=False, dest='driver_path',
+                        help='The driver must be supplied via PATH environment variable or via this argument')
     parser.add_argument('email')
     parser.add_argument('password')
     return parser.parse_args()
