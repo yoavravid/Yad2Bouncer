@@ -121,6 +121,7 @@ class Yad2:
             lambda e: e.get_attribute('src').endswith(u'OrderID=' + ad.get_attribute('data-orderid')),
             ad_content_frames
         )
+        ad_content_frames = list(ad_content_frames)
         if len(ad_content_frames) != 1:
             self._raise_error('Failed to find a single iframe')
 
