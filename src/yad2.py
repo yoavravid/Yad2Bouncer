@@ -44,10 +44,12 @@ class Yad2:
         self._logger.info('Logging in')
         self._login(email, password)
         self._logger.info('Logged in')
-        yield
-        self._logger.info('Logging out')
-        self._logout()
-        self._logger.info('Logged out')
+        try:
+            yield
+        finally:
+            self._logger.info('Logging out')
+            self._logout()
+            self._logger.info('Logged out')
 
     def _login(self, email, password):
         self._driver.get(Yad2.LOGIN_URL)
@@ -124,21 +126,27 @@ class Yad2:
         if len(ad_content_frames) != 1:
             self._raise_error('Failed to find a single iframe')
 
-        with self.enter_iframe(ad_content_frames.pop()):
-            yield
-        # Close the ad
-        ad.click()
+        try:
+            with self.enter_iframe(ad_content_frames.pop()):
+                yield
+        finally:
+            # Close the ad
+            ad.click()
 
     @contextmanager
     def enter_iframe(self, iframe):
         self._driver.switch_to.frame(iframe)
-        yield
-        self._driver.switch_to.default_content()
+        try:
+            yield
+        finally:
+            self._driver.switch_to.default_content()
 
     @contextmanager
     def enter_alert(self):
-        yield self._driver.switch_to.alert
-        self._driver.switch_to.default_content()
+        try:
+            yield self._driver.switch_to.alert
+        finally:
+            self._driver.switch_to.default_content()
 
     def get_screenshot_as_file(self, filename):
         self._driver.get_screenshot_as_file(filename)
