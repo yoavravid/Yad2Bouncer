@@ -16,6 +16,7 @@ class Yad2:
     LOGOUT_BUTTON_CLASS = 'logout'
     LOGIN_URL = 'https://my.yad2.co.il/login.php'
     PERSONAL_AREA_URL = 'https://my.yad2.co.il//newOrder/index.php?action=personalAreaIndex'
+    AD_DETAILS_MAX_LEN = 64
 
     def __init__(self, executable_path=None):
         options = webdriver.ChromeOptions()
@@ -32,7 +33,7 @@ class Yad2:
         self._create_logger('yad2.log')
 
     def _create_logger(self, logfile):
-        logger_handler = logging.FileHandler(logfile)
+        logger_handler = logging.FileHandler(logfile, encoding='utf8')
         logger_formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
         logger_handler.setFormatter(logger_formatter)
         self._logger = logging.getLogger(__name__)
@@ -41,15 +42,15 @@ class Yad2:
 
     @contextmanager
     def login(self, email, password):
-        self._logger.info('Logging in')
+        self._logger.info('Logging in to %s', email)
         self._login(email, password)
-        self._logger.info('Logged in')
+        self._logger.info('Logged in to %s', email)
         try:
             yield
         finally:
-            self._logger.info('Logging out')
+            self._logger.info('Logging out from %s', email)
             self._logout()
-            self._logger.info('Logged out')
+            self._logger.info('Logged out from %s', email)
 
     def _login(self, email, password):
         self._driver.get(Yad2.LOGIN_URL)
@@ -60,7 +61,7 @@ class Yad2:
         password_textbox.send_keys(password)
         submit_button.click()
         if self._driver.current_url != Yad2.PERSONAL_AREA_URL:
-            self._raise_error('Login failed')
+            self._raise_error('Login failed for {}'.format(email))
 
     def _logout(self):
         logout_button = self._driver.find_element_by_class_name(Yad2.LOGOUT_BUTTON_CLASS)
@@ -107,8 +108,14 @@ class Yad2:
             for ad in self.iterate_ads():
                 with self.enter_ad(ad):
                     bounce_button = self._driver.find_element_by_id('bounceRatingOrderBtn')
+                    ad_details = self._driver.find_element_by_class_name('details_area').text.strip().replace('\n', ' ')
+                    ad_details = (
+                        ad_details[:Yad2.AD_DETAILS_MAX_LEN] if len(ad_details) <= Yad2.AD_DETAILS_MAX_LEN else
+                        ad_details[:Yad2.AD_DETAILS_MAX_LEN-3] + '...'
+                    )
+                    self._logger.info('Handling ad: %s', ad_details)
                     if bounce_button.value_of_css_property('background').startswith(u'rgb(204, 204, 204)'):
-                        self._logger.info('Button is disabled')
+                        self._logger.info('Bounce button is disabled')
                     else:
                         bounce_button.click()
                         self._logger.info('Bounced Ad!')
@@ -123,6 +130,7 @@ class Yad2:
             lambda e: e.get_attribute('src').endswith(u'OrderID=' + ad.get_attribute('data-orderid')),
             ad_content_frames
         )
+        ad_content_frames = list(ad_content_frames)
         if len(ad_content_frames) != 1:
             self._raise_error('Failed to find a single iframe')
 
