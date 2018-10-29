@@ -99,21 +99,26 @@ class Yad2:
                 iterated_all_categories = True
 
     def iterate_ads(self):
-        for item_row in self._driver.find_elements_by_class_name('item'):
-            yield item_row
+        return (ad for ad in self._driver.find_elements_by_class_name('item'))
 
     def bounce_all_ads(self):
         for category_text in self.iterate_categories():
             self._logger.info(u'Opened category: ' + category_text)
             for ad in self.iterate_ads():
+                ad_status = ad.find_element_by_class_name('status_wrapper')
+                if ad_status.text == u'פג תוקף':
+                    ad_text = ad.find_element_by_class_name('textArea').text
+                    self._logger.info('The following ad is out dated: %s', ad_text)
+                    continue
+
                 with self.enter_ad(ad):
-                    bounce_button = self._driver.find_element_by_id('bounceRatingOrderBtn')
                     ad_details = self._driver.find_element_by_class_name('details_area').text.strip().replace('\n', ' ')
                     ad_details = (
                         ad_details[:Yad2.AD_DETAILS_MAX_LEN] if len(ad_details) <= Yad2.AD_DETAILS_MAX_LEN else
                         ad_details[:Yad2.AD_DETAILS_MAX_LEN-3] + '...'
                     )
                     self._logger.info('Handling ad: %s', ad_details)
+                    bounce_button = self._driver.find_element_by_id('bounceRatingOrderBtn')
                     if bounce_button.value_of_css_property('background').startswith(u'rgb(204, 204, 204)'):
                         self._logger.info('Bounce button is disabled')
                     else:
@@ -137,6 +142,8 @@ class Yad2:
         try:
             with self.enter_iframe(ad_content_frames.pop()):
                 yield
+        except Exception as exc:
+            self._logger.error("Failed to handle ad: %s", str(exc))
         finally:
             # Close the ad
             ad.click()
